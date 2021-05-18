@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useState } from 'react'
-import { StatusBar, StyleSheet, Text, View } from 'react-native';
+import { StatusBar, StyleSheet, Text, TouchableWithoutFeedback, View } from 'react-native';
 import { Avatar } from 'react-native-elements';
 import { TouchableOpacity } from 'react-native';
 import {AntDesign, FontAwesome, Ionicons} from '@expo/vector-icons';
@@ -9,9 +9,12 @@ import { Platform } from 'react-native';
 import { ScrollView } from 'react-native';
 import { TextInput } from 'react-native';
 import { Keyboard } from 'react-native';
+import firebase from "firebase";
+import {auth, db} from '../firebase';
 
 const ChatScreen = ({navigation, route}) => {
     const [input, setinput] = useState('');
+    const [messages, setmessages] = useState([]);
 
     useLayoutEffect(() => {
         navigation.setOptions({
@@ -44,7 +47,30 @@ const ChatScreen = ({navigation, route}) => {
 
     const sendMessage = () => {
         Keyboard.dismiss();
+
+        db.collection('chats').doc(route.params.id).collection('messages').add({
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+            message: input,
+            displayName: auth.currentUser.displayName,
+            email: auth.currentUser.email,
+            photoURL: auth.currentUser.photoURL,
+        })
+
+        setinput("");
     }
+
+    useLayoutEffect(() => {
+        const unsubscribe = db.collection('chats').doc(route.params.id)
+        .collection('messages')
+        .orderBy('timestamp', 'desc').onSnapshot(snapshot =>setmessages(
+            snapshot.docs.map(doc => ({
+                id: doc.id,
+                data: doc.data()
+            }))
+        ));
+
+        return unsubscribe;
+    }, [route]);
 
     return (
         <SafeAreaView style={{flex: 1, backgroundColor: 'white'}}>
@@ -54,18 +80,24 @@ const ChatScreen = ({navigation, route}) => {
                 style={styles.container}
                 keyboardVerticalOffset={90}
             >
-                <>
-                    <ScrollView>
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    <>
+                        <ScrollView>
 
-                    </ScrollView>
-                    <View style={styles.footer}>
-                        <TextInput placeholder="Signal Message" style={styles.textInput} onChangeText={(val) => setinput(val)}></TextInput>
-                        <TouchableOpacity activeOpacity={0.5} onPress={sendMessage}>
-                            <Ionicons name="send" size={24} color="#2b68e6"></Ionicons>
-                        </TouchableOpacity>
-                    </View>
-                </>
-
+                        </ScrollView>
+                        <View style={styles.footer}>
+                            <TextInput 
+                                placeholder="Signal Message" 
+                                value={input}
+                                style={styles.textInput} 
+                                onChangeText={(text) => setinput(text)} 
+                                onSubmitEditing={sendMessage}></TextInput>
+                            <TouchableOpacity activeOpacity={0.5} onPress={sendMessage}>
+                                <Ionicons name="send" size={24} color="#2b68e6"></Ionicons>
+                            </TouchableOpacity>
+                        </View>
+                    </>
+                </TouchableWithoutFeedback>
             </KeyboardAvoidingView>
             
         </SafeAreaView>
